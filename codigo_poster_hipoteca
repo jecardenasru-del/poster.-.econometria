@@ -14,6 +14,7 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import seaborn as sns
 from scipy import stats
 import warnings
+
 #%% base de datos 
 #1 encuentra la base de datos 
 BASE_DIR = Path(__file__).resolve().parent if '__file__' in locals() else Path.cwd()
@@ -36,11 +37,12 @@ print(df_hipotecas.describe())
 plt.figure(figsize=(12, 6))
 plt.plot(df_hipotecas.index, df_hipotecas['Tasa_hipotecaria'], color='darkblue', linewidth=2)
 plt.title('Promedio de Tasa Hipotecaria Fija a 30 Años en EE.UU.', fontsize=14, fontweight='bold')
-plt.xlabel('Tiempo (Años)', fontsize=12)
-plt.ylabel('Porcentaje (%)', fontsize=12)
-plt.grid(True, linestyle='--', alpha=0.6)
+plt.xlabel('Tiempo (Años)')
+plt.ylabel('Porcentaje (%)')
+plt.grid(True, linestyle='--')
 plt.tight_layout()
 plt.show()
+
 #%% 
 # se puede apreciar que no tiene ni media ni varianza constante, por lo que no es estacionaria.
 #por ello voy a aplicar primer logarritmo y luego diferencia para intentar hacerla estacionaria :D 
@@ -53,6 +55,75 @@ plt.title('Logaritmo Natural del Promedio de Tasa Hipotecaria Fija a 30 Años', 
 plt.xlabel('Tiempo (Años)', fontsize=12)
 plt.ylabel('Escala Logarítmica', fontsize=12)
 plt.grid(True, linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.show()
+
+# %% comparacion una sobre la otra 
+fig, ax1 = plt.subplots(figsize=(12, 6))
+# 1. grafica sin tranfomacion (rojo)
+linea1 = ax1.plot(df_hipotecas.index, df_hipotecas['Tasa_hipotecaria'], color='red', linewidth=2, label='Tasa Original (%)')
+ax1.set_xlabel('Tiempo (Años)', fontsize=12)
+ax1.set_ylabel('Tasa Original (%)', color='red', fontsize=12)
+ax1.tick_params(axis='y', labelcolor='red')
+ax1.grid(True, linestyle='--', alpha=0.3)
+
+# 2. Crear un segundo eje Y que comparte el mismo eje X
+ax2 = ax1.twinx()  
+
+# grafica con transformacion de logaritmo (azul) 
+linea2 = ax2.plot(df_hipotecas.index, df_hipotecas['LOG_hipotecas'], color='blue', linewidth=2, linestyle='--', label='Log Tasa')
+ax2.set_ylabel('Escala Logarítmica', color='blue', fontsize=12)
+ax2.tick_params(axis='y', labelcolor='blue')
+
+# Añadir título y combinar las leyendas de ambas líneas
+plt.title('Comparativa: Tasa Hipotecaria Original vs Transformación Logarítmica', fontsize=14, fontweight='bold')
+lineas = linea1 + linea2
+etiquetas = [l.get_label() for l in lineas]
+ax1.legend(lineas, etiquetas, loc='upper right')
+
+plt.tight_layout()
+plt.show()
+#se comportan bastante igual por ello no creo que sea necesario aplicar logaritmo
+
+# %% aplico diferencia para intentar que tenga media constante 
+
+# se pone una columna de diferencia en la base de datos
+df_hipotecas['Diff_Tasa_hipotecaria'] = df_hipotecas['Tasa_hipotecaria'].diff()
+
+# ahora se grafica 
+plt.figure(figsize=(12, 6))
+plt.plot(df_hipotecas.index, df_hipotecas['Diff_Tasa_hipotecaria'], color='purple', linewidth=1.5)
+plt.title('Primera Diferencia de la Tasa Hipotecaria Fija a 30 Años ($\Delta y_t$)', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)')
+plt.ylabel('Cambio Porcentual Absoluto')
+plt.axhline(0, color='black', linestyle='-', alpha=0.5, linewidth=1) # Línea de referencia en cero
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.show()
+# mejora :D entonces creo que por el momento es un ARIMA(?,1,?)
+#recapitulando no es necesario aplicar logarimo pero si aplicar diferencia 
+
+# %%grafica fac y facp 
+# toca quitar el primer dato por la diferencia 
+serie_diferenciada = df_hipotecas['Diff_Tasa_hipotecaria'].dropna()
+
+# para que salgan ambas 
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
+
+# grafico fac sin la correracion cero 
+plot_acf(serie_diferenciada, lags=40, ax=ax1, color='darkblue' , zero=False)
+ax1.set_title('Función de Autocorrelación (FAC)', fontsize=13, fontweight='bold')
+ax1.set_xlabel('Rezagos (Lags)', fontsize=11)
+ax1.set_ylabel('Coeficiente de Autocorrelación', fontsize=11)
+ax1.grid(True, linestyle='--', alpha=0.5)
+
+# grafico FACP
+plot_pacf(serie_diferenciada, lags=40, ax=ax2, color='darkgreen', zero=False)
+ax2.set_title('Función de Autocorrelación Parcial (FACP)', fontsize=13, fontweight='bold')
+ax2.set_xlabel('Rezagos (Lags)', fontsize=11)
+ax2.set_ylabel('Coeficiente de Autocorrelación Parcial', fontsize=11)
+ax2.grid(True, linestyle='--', alpha=0.5)
+
 plt.tight_layout()
 plt.show()
 
