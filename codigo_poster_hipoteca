@@ -1,0 +1,59 @@
+
+# BASE DE DATOS REFEENCIADA: 
+# Freddie Mac, Promedio de hipotecas a tipo fijo a 30 años en Estados Unidos [MORTGAGE30US],
+# recuperado de FRED, Banco de la Reserva Federal de St. Louis; https://fred.stlouisfed.org/series/MORTGAGE30US, 22 de mayo de 2026.
+#%% librerias
+import numpy as np
+import pandas as pd
+from pathlib import Path
+import matplotlib.pyplot as plt
+from statsmodels.tsa.arima_process import ArmaProcess
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.stattools import acf, pacf
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+import seaborn as sns
+from scipy import stats
+import warnings
+#%% base de datos 
+#1 encuentra la base de datos 
+BASE_DIR = Path(__file__).resolve().parent if '__file__' in locals() else Path.cwd()
+ruta_hipotecas = BASE_DIR / "Hipotecas_MORTGAGE30US.csv"
+
+# 2. carga la base de datos 
+df_hipotecas = pd.read_csv(ruta_hipotecas, parse_dates=['observation_date'], index_col='observation_date')
+
+#%% exploracion de datos
+# renombro las columnas por que tiene un nombre muy feo 
+df_hipotecas = df_hipotecas.rename(columns={
+    'observation_date': 'Fecha',
+    'MORTGAGE30US': 'Tasa_hipotecaria'
+})
+print(df_hipotecas.info())
+print(df_hipotecas.describe())
+
+# %%graficas 
+# 3. GRAFICAR LA SERIE HISTÓRICA
+plt.figure(figsize=(12, 6))
+plt.plot(df_hipotecas.index, df_hipotecas['Tasa_hipotecaria'], color='darkblue', linewidth=2)
+plt.title('Promedio de Tasa Hipotecaria Fija a 30 Años en EE.UU.', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)', fontsize=12)
+plt.ylabel('Porcentaje (%)', fontsize=12)
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.show()
+#%% 
+# se puede apreciar que no tiene ni media ni varianza constante, por lo que no es estacionaria.
+#por ello voy a aplicar primer logarritmo y luego diferencia para intentar hacerla estacionaria :D 
+df_hipotecas['LOG_hipotecas'] = np.log(df_hipotecas['Tasa_hipotecaria'])
+#se anade un columna de log de los datos en la base de datos 
+# grafico con la transformacion de logaritmo 
+plt.figure(figsize=(12, 6))
+plt.plot(df_hipotecas.index, df_hipotecas['LOG_hipotecas'], color='blue', linewidth=2)
+plt.title('Logaritmo Natural del Promedio de Tasa Hipotecaria Fija a 30 Años', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)', fontsize=12)
+plt.ylabel('Escala Logarítmica', fontsize=12)
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.show()
+
+# %%
