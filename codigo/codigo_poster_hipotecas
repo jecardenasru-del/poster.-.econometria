@@ -21,13 +21,13 @@ import scipy.stats as stats
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 #%%  BASE DE DATOS 
-# 1. Encuentra la base de datos
-BASE= Path(__file__).resolve().parent if '__file__' in locals() else Path.cwd() [cite: 26, 27]
-ruta_hipotecas = BASE / "Hipotecas_MORTGAGE30US.csv"
+CARPETA_ACTUAL = Path('.').resolve()
 
-# 2. Carga la base de datos 
+# 2. .parent sube un nivel (sale de 'codigo') y luego entra a 'bases_de_datos'
+ruta_hipotecas = CARPETA_ACTUAL.parent / "bases_de_datos" / "Hipotecas_MORTGAGE30US.csv"
+
+# 3. Carga la base de datos
 df_hipotecas = pd.read_csv(ruta_hipotecas, parse_dates=['observation_date'], index_col='observation_date')
-
 #%% mirar la base de datos
 # Renombro las columnas por que tiene un nombre muy feo y tedioso
 df_hipotecas = df_hipotecas.rename(columns={'MORTGAGE30US': 'Tasa_hipotecaria'})
@@ -241,6 +241,11 @@ print("Prueba ARCH")
 print("LM statistic:", arch_test[0])
 print("LM p-value:", arch_test[1])
 
+if arch_test[1] > 0.05:
+    print("No se rechaza H0; no hay efectos ARCH.")
+else:    
+    print("Se rechaza H0; hay efectos ARCH.")
+
 # H0: no hay efectos ARCH.
 # Si p-value > 0.05, no se rechaza H0.
 
@@ -319,4 +324,5 @@ tabla_pronostico = pd.DataFrame({
 })
 print("\n--- TABLA DE PRONÓSTICOS GENERADA CON ÉXITO ---")
 print(tabla_pronostico.round(4))
+
 
