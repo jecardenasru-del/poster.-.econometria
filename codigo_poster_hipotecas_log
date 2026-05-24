@@ -1,0 +1,229 @@
+#  DE DATOS REFERENCIADA: 
+# Freddie Mac, Promedio de hipotecas a tipo fijo a 30 años en Estados Unidos [MORTGAGE30US],
+# recuperado de FRED, Banco de la Reserva Federal de St. Louis; https://fred.stlouisfed.org/series/MORTGAGE30US, 22 de mayo de 2026.
+
+#%% Librerias
+import numpy as np
+import pandas as pd
+from pathlib import Path
+import matplotlib.pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+import warnings
+import pmdarima as pm # para halar el mejor modelo de ARIMA
+warnings.filterwarnings('ignore')
+
+#%% Base de datos 
+# 1. Encuentra la base de datos
+_DIR = Path(__file__).resolve().parent if '__file__' in locals() else Path.cwd() [cite: 26, 27]
+ruta_hipotecas = _DIR / "Hipotecas_MORTGAGE30US.csv"
+
+# 2. Carga la base de datos 
+Base = pd.read_csv(ruta_hipotecas, parse_dates=['observation_date'], index_col='observation_date')
+
+#%% mirar la base de datos
+# Renombro las columnas por que tiene un nombre muy feo y tedioso
+Base = Base.rename(columns={'MORTGAGE30US': 'Tasa_hipotecaria'})
+print(Base.info())
+print(Base.describe())
+
+#%% Grafica de la serie de tiempo 
+plt.figure(figsize=(12, 6))
+plt.plot(Base.index, Base['Tasa_hipotecaria'], color='darkblue', linewidth=2)
+plt.title('Promedio de Tasa Hipotecaria Fija a 30 Años en EE.UU. (Niveles)', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)')
+plt.ylabel('y_t (Porcentaje %)')
+plt.grid(True, linestyle='--')
+plt.show()
+
+# Nota : Se puede apreciar que no tiene ni media ni varianza constante, por lo que no es estacionaria.
+# Por ello voy a aplicar primer logarritmo y luego diferencia para intentar hacerla estacionaria :D 
+
+#%% FAC y FACP de la serie original
+serie_normal = Base['Tasa_hipotecaria'].dropna()
+
+plt.figure(figsize=(16, 5))
+
+#Grafico FAC
+plt.subplot(1, 2, 1)
+plot_acf(serie_normal, lags=40,  ax=plt.gca(), color='darkblue')
+plt.title('Función de Autocorrelación (FAC)', fontsize=13, fontweight='bold')
+plt.xlabel('Rezagos (Lags)')
+plt.ylabel('Autocorrelación')
+plt.grid(True, linestyle='--', alpha=0.5)
+
+#Grafico FACP
+plt.subplot(1, 2, 2)
+plot_pacf(serie_normal, lags=40,  ax=plt.gca(), color='darkgreen')
+plt.title('Función de Autocorrelación Parcial (FACP)', fontsize=13, fontweight='bold')
+plt.xlabel('Rezagos (Lags)')
+plt.ylabel('Autocorrelación Parcial')
+plt.grid(True, linestyle='--', alpha=0.5)
+
+plt.tight_layout()
+plt.show()
+
+#%% Grafico con la transformacion de logaritmo
+Base['LOG_hipotecas'] = np.log(Base['Tasa_hipotecaria'])
+# Se anade un columna de log de los datos en la  de datos
+plt.figure(figsize=(12, 6))
+plt.plot(Base.index, Base['LOG_hipotecas'], color='red', linewidth=2)
+plt.title('Logaritmo Natural del Promedio de Tasa Hipotecaria Fija a 30 Años', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)')
+plt.ylabel('log(y_t)')
+plt.grid(True, linestyle='--')
+plt.show()
+
+#%% FAC y FACP de la serie con logaritmo
+serie_normal = Base['LOG_hipotecas'].dropna()
+
+plt.figure(figsize=(16, 5))
+
+#Grafico FAC
+plt.subplot(1, 2, 1)
+plot_acf(serie_normal, lags=40,  ax=plt.gca(), color='darkblue')
+plt.title('Función de Autocorrelación (FAC)', fontsize=13, fontweight='bold')
+plt.xlabel('Rezagos (Lags)')
+plt.ylabel('Autocorrelación')
+plt.grid(True, linestyle='--', alpha=0.5)
+
+#Grafico FACP
+plt.subplot(1, 2, 2)
+plot_pacf(serie_normal, lags=40,  ax=plt.gca(), color='darkgreen')
+plt.title('Función de Autocorrelación Parcial (FACP)', fontsize=13, fontweight='bold')
+plt.xlabel('Rezagos (Lags)')
+plt.ylabel('Autocorrelación Parcial')
+plt.grid(True, linestyle='--', alpha=0.5)
+
+plt.tight_layout()
+plt.show()
+# %% Comparativa entre la serie original y la transformada en logaritmo
+
+plt.figure(figsize=(12, 6))
+
+# 1. Grafica serie original (Rojo)
+plt.plot(Base.index, Base['Tasa_hipotecaria'], color='red', linewidth=2, label='Tasa Original (%)')
+plt.ylabel('Tasa Original (%)', color='red')
+plt.grid(True, linestyle='--')
+
+# 2. Activar el segundo eje Y compartiendo el mismo eje X
+plt.twinx()
+
+# 3. Grafica serie en logaritmo (Azul)
+plt.plot(Base.index, Base['LOG_hipotecas'], color='blue', linewidth=2, linestyle='--', label='Log Tasa')
+plt.ylabel('Escala Logarítmica', color='blue')
+
+# Titulos
+plt.title('Comparativa: Tasa Hipotecaria Original vs Transformación Logarítmica', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)')
+
+plt.show()
+
+#%% Aplico diferencia para intentar que tenga media constante
+# Se añade la columna de diferencia a la  de datos
+Base['Diff_hipotecaria'] = Base['Tasa_hipotecaria'].diff()
+
+plt.figure(figsize=(12, 6))
+plt.plot(Base.index, Base['Diff_hipotecaria'], color='purple', linewidth=1.5)
+plt.title('Primera Diferencia de el logaritmo de la Tasa Hipotecaria ($\Delta y_t$)', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)')
+plt.ylabel('$\Delta y_t$')
+plt.axhline(0, color='black', linestyle='-', alpha=0.5, linewidth=1) # Línea de referencia en cero
+plt.grid(True, linestyle='--')
+plt.show()
+# mejora :D entonces creo que por el momento es un ARIMA(?,1,?)
+#recapitulando no es necesario aplicar logarimo pero si aplicar diferencia
+
+#%% por sujerencia de los profes hago la grafica de la serie de tiempo pero con log y diferenciar
+Base['Diff_log_hipotecas'] = Base['LOG_hipotecas'].diff()
+
+plt.figure(figsize=(12, 6))
+plt.plot(Base.index, Base['Diff_log_hipotecas'], color='purple', linewidth=1.5)
+plt.title('Primera Diferencia de la Tasa logaritmica Hipotecaria ($\Delta log(y_t$))', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)')
+plt.ylabel('$\Delta log(y_t$)')
+plt.ylim(-1, 1)
+plt.axhline(0, color='black', linestyle='-', alpha=0.5, linewidth=1) # Línea de referencia en cero
+plt.grid(True, linestyle='--')
+plt.show()
+
+#%% Grafica FAC
+# Toca quitar el primer dato por la diferencia 
+serie_diferenciada = Base['Diff_log_hipotecas'].dropna()
+
+plt.figure(figsize=(16, 5))
+
+#Grafico FAC
+plt.subplot(1, 2, 1)
+plot_acf(serie_diferenciada, lags=40,  ax=plt.gca(), color='darkblue')
+plt.title('Función de Autocorrelación (FAC)', fontsize=13, fontweight='bold')
+plt.xlabel('Rezagos (Lags)')
+plt.ylabel('Autocorrelación')
+plt.grid(True, linestyle='--', alpha=0.5)
+
+#Grafico FACP
+plt.subplot(1, 2, 2)
+plot_pacf(serie_diferenciada, lags=40,  ax=plt.gca(), color='darkgreen')
+plt.title('Función de Autocorrelación Parcial (FACP)', fontsize=13, fontweight='bold')
+plt.xlabel('Rezagos (Lags)')
+plt.ylabel('Autocorrelación Parcial')
+plt.grid(True, linestyle='--', alpha=0.5)
+
+plt.tight_layout()
+plt.show()
+
+# yo diria que puede ser un ARIMA(2,1,2) por parcimonia ya que tanto 
+# la parte autoregresiva como la de media movil parecieran que tiene solucion imaginaria 
+
+#%% ARIMA(2,1,2)
+modelo_arima_212 = ARIMA(Base['Tasa_hipotecaria'], order=(2, 1, 2))
+resultados_212 = modelo_arima_212.fit()
+print(resultados_212.summary())
+
+#%% Predicciones con ARIMA(3,1,3)
+modelo_arima_313 = ARIMA(Base['Tasa_hipotecaria'], order=(3, 1, 3))
+resultados_313 = modelo_arima_313.fit()
+print(resultados_313.summary())
+
+# %% Busuqueda automatica del mejor modelo ARIMA :D con el AIC
+print("Buscando el mejor modelo ARIMA segun el criterio de AIC...")
+
+# Ejecutamos el auto_arima 
+modelo_automatico = pm.auto_arima(Base['LOG_hipotecas'],
+                                  start_p=0, start_q=0, # Desde qué rezagos empezar a buscar
+                                  max_p=5, max_q=5,     # Hasta qué rezago máximo probar
+                                  d=1,                  # Ya comprobamos que necesita 1 diferencia
+                                  seasonal=False,       # No es un modelo estacional (SARIMA)
+                                  trace=True,           # Clave: Muestra la "competencia" en la consola
+                                  error_action='ignore',
+                                  suppress_warnings=True,
+                                  stepwise=True)        # Algoritmo eficiente de búsqueda
+
+print("\n--- RESUMEN DEL MODELO GANADOR ---")
+print(modelo_automatico.summary())
+# SOy muy bueno le atine a la primera :D ARIMA(2,1,2) es el mejor modelo segun el criterio de AIC :D
+# traiganme ya el otro parcial :) y lo cinqueo jaja
+
+#%% Busuqueda automatica del mejor modelo ARIMA :D con el BIC
+print("Buscando el mejor modelo ARIMA basándose en el BIC...")
+
+# Ejecutamos el auto_arima cambiando el criterio de selección al BIC
+modelo_automatico = pm.auto_arima(Base['LOG_hipotecas'],
+                                  start_p=0, start_q=0, 
+                                  max_p=5, max_q=5,     
+                                  d=1,                  
+                                  seasonal=False,       
+                                  information_criterion='bic', # <-- CLAVE: Fuerza a elegir por BIC
+                                  trace=True,           
+                                  error_action='ignore',
+                                  suppress_warnings=True,
+                                  stepwise=True)        
+
+print("\n--- RESUMEN DEL MODELO GANADOR (SEGÚN BIC) ---")
+print(modelo_automatico.summary())
+# %%
+print("\n--- METRICAS DE SELECCIÓN PARA EL PÓSTER ---")
+print("Modelo Ganador Seleccionado: ARIMA", modelo_automatico.order)
+print("AIC del modelo ganador:", modelo_automatico.aic())
+print("BIC del modelo ganador:", modelo_automatico.bic())
+# %%

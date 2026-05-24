@@ -12,11 +12,12 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import warnings
 import pmdarima as pm # para halar el mejor modelo de ARIMA
 warnings.filterwarnings('ignore')
+from statsmodels.tsa.stattools import adfuller # para el test de raiz unitaria
 
 #%%  BASE DE DATOS 
 # 1. Encuentra la base de datos
-BASE_DIR = Path(__file__).resolve().parent if '__file__' in locals() else Path.cwd() [cite: 26, 27]
-ruta_hipotecas = BASE_DIR / "Hipotecas_MORTGAGE30US.csv"
+BASE= Path(__file__).resolve().parent if '__file__' in locals() else Path.cwd() [cite: 26, 27]
+ruta_hipotecas = BASE / "Hipotecas_MORTGAGE30US.csv"
 
 # 2. Carga la base de datos 
 df_hipotecas = pd.read_csv(ruta_hipotecas, parse_dates=['observation_date'], index_col='observation_date')
@@ -169,4 +170,26 @@ print("\n--- METRICAS DE SELECCIÓN PARA EL PÓSTER ---")
 print("Modelo Ganador Seleccionado: ARIMA", modelo_automatico.order)
 print("AIC del modelo ganador:", modelo_automatico.aic())
 print("BIC del modelo ganador:", modelo_automatico.bic())
-# %%
+
+
+
+
+
+
+#%% test de raiz unitaria
+# 1. Aplicamos el test a la serie diferenciada (eliminando los valores nulos)
+serie_diferenciada = Base['Diff_hipotecaria'].dropna()
+resultado_adf = adfuller(serie_diferenciada)
+
+# 2. Desempaquetamos y organizamos los resultados para que se vean bien en consola
+print(f'Estadístico ADF: {resultado_adf[0]:.4f}')
+print(f'p-valor: {resultado_adf[1]:.4f}')
+print('Valores Críticos:')
+for clave, valor in resultado_adf[4].items():
+    print(f'   {clave}: {valor:.4f}')
+
+# 3. Conclusión automática para ayudarte a interpretar
+if resultado_adf[1] < 0.05:
+    print("\nConclusión: El p-valor es menor a 0.05. Se rechaza H0; la serie ES ESTACIONARIA.")
+else:
+    print("\nConclusión: El p-valor es mayor a 0.05. No se rechaza H0; la serie NO ES ESTACIONARIA.")
