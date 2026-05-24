@@ -11,8 +11,14 @@ from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import warnings
 import pmdarima as pm # para halar el mejor modelo de ARIMA
+from statsmodels.stats.diagnostic import acorr_ljungbox # para la prueba de autocorrelacion de los residuos
 warnings.filterwarnings('ignore')
 from statsmodels.tsa.stattools import adfuller # para el test de raiz unitaria
+from statsmodels.stats.diagnostic import het_arch
+from statsmodels.stats.stattools import jarque_bera
+from scipy.stats import norm
+import scipy.stats as stats
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 #%%  BASE DE DATOS 
 # 1. Encuentra la base de datos
@@ -41,10 +47,10 @@ plt.show()
 # Por ello voy a aplicar primer logarritmo y luego diferencia para intentar hacerla estacionaria :D 
 
 #%% Grafico con la transformacion de logaritmo
-df_hipotecas['LOG_hipotecas'] = np.log(df_hipotecas['Tasa_hipotecaria'])
+df_hipotecas['log_hipotecas'] = np.log(df_hipotecas['Tasa_hipotecaria'])
 # Se anade un columna de log de los datos en la base de datos
 plt.figure(figsize=(12, 6))
-plt.plot(df_hipotecas.index, df_hipotecas['LOG_hipotecas'], color='red', linewidth=2)
+plt.plot(df_hipotecas.index, df_hipotecas['log_hipotecas'], color='red', linewidth=2)
 plt.title('Logaritmo Natural del Promedio de Tasa Hipotecaria Fija a 30 Años', fontsize=14, fontweight='bold')
 plt.xlabel('Tiempo (Años)')
 plt.ylabel('log(y_t)')
@@ -64,7 +70,7 @@ plt.grid(True, linestyle='--')
 plt.twinx()
 
 # 3. Grafica serie en logaritmo (Azul)
-plt.plot(df_hipotecas.index, df_hipotecas['LOG_hipotecas'], color='blue', linewidth=2, linestyle='--', label='Log Tasa')
+plt.plot(df_hipotecas.index, df_hipotecas['log_hipotecas'], color='blue', linewidth=2, linestyle='--', label='Log Tasa')
 plt.ylabel('Escala Logarítmica', color='blue')
 
 # Titulos
@@ -76,10 +82,10 @@ plt.show()
 
 #%% Aplico diferencia para intentar que tenga media constante
 # Se añade la columna de diferencia a la base de datos
-df_hipotecas['Diff_Tasa_hipotecaria'] = df_hipotecas['Tasa_hipotecaria'].diff()
+df_hipotecas['Dif_hipotecas'] = df_hipotecas['Tasa_hipotecaria'].diff()
 
 plt.figure(figsize=(12, 6))
-plt.plot(df_hipotecas.index, df_hipotecas['Diff_Tasa_hipotecaria'], color='purple', linewidth=1.5)
+plt.plot(df_hipotecas.index, df_hipotecas['Dif_hipotecas'], color='purple', linewidth=1.5)
 plt.title('Primera Diferencia de la Tasa Hipotecaria ($\Delta y_t$)', fontsize=14, fontweight='bold')
 plt.xlabel('Tiempo (Años)')
 plt.ylabel('$\Delta y_t$')
@@ -91,7 +97,7 @@ plt.show()
 
 #%% Grafica FAC
 # Toca quitar el primer dato por la diferencia 
-serie_diferenciada = df_hipotecas['Diff_Tasa_hipotecaria'].dropna()
+serie_diferenciada = df_hipotecas['Dif_hipotecas'].dropna()
 
 plt.figure(figsize=(16, 5))
 
@@ -127,7 +133,6 @@ modelo_arima_313 = ARIMA(df_hipotecas['Tasa_hipotecaria'], order=(3, 1, 3))
 resultados_313 = modelo_arima_313.fit()
 print(resultados_313.summary())
 
-# %%
 # %% Busuqueda automatica del mejor modelo ARIMA :D con el AIC
 print("Buscando el mejor modelo ARIMA segun el criterio de AIC...")
 
@@ -165,31 +170,153 @@ modelo_automatico = pm.auto_arima(df_hipotecas['Tasa_hipotecaria'],
 
 print("\n--- RESUMEN DEL MODELO GANADOR (SEGÚN BIC) ---")
 print(modelo_automatico.summary())
-# %%
-print("\n--- METRICAS DE SELECCIÓN PARA EL PÓSTER ---")
-print("Modelo Ganador Seleccionado: ARIMA", modelo_automatico.order)
-print("AIC del modelo ganador:", modelo_automatico.aic())
-print("BIC del modelo ganador:", modelo_automatico.bic())
-
-
-
-
-
 
 #%% test de raiz unitaria
-# 1. Aplicamos el test a la serie diferenciada (eliminando los valores nulos)
-serie_diferenciada = Base['Diff_hipotecaria'].dropna()
-resultado_adf = adfuller(serie_diferenciada)
+# Aplicamos el test a la serie diferenciada (eliminando los valores nulos)
+serie_test = df_hipotecas['Dif_hipotecas'].dropna() 
+resultado_adf = adfuller(serie_test)
 
-# 2. Desempaquetamos y organizamos los resultados para que se vean bien en consola
+# resultados del test
 print(f'Estadístico ADF: {resultado_adf[0]:.4f}')
 print(f'p-valor: {resultado_adf[1]:.4f}')
 print('Valores Críticos:')
 for clave, valor in resultado_adf[4].items():
     print(f'   {clave}: {valor:.4f}')
 
-# 3. Conclusión automática para ayudarte a interpretar
+# conclusion automatica 
 if resultado_adf[1] < 0.05:
-    print("\nConclusión: El p-valor es menor a 0.05. Se rechaza H0; la serie ES ESTACIONARIA.")
+    print("Se rechaza H0; la serie es estacionaria.")
 else:
-    print("\nConclusión: El p-valor es mayor a 0.05. No se rechaza H0; la serie NO ES ESTACIONARIA.")
+    print("No se rechaza H0; la serie no es estacionaria.")
+
+# %% FAC de residuos y residuos al cuadrado
+# se sacan los residuos del modelo :D
+residuos = resultados_212.resid
+residuos_cuadrado = residuos ** 2
+
+# para que entren los dos graficos en la misma figura
+plt.figure(figsize=(16, 5))
+
+# FAC de los residuos
+plt.subplot(1, 2, 1)
+plot_acf(residuos, lags=40, zero=False, ax=plt.gca(), color='darkblue')
+plt.title('FAC de los Residuos ($e_t$)', fontsize=13, fontweight='bold')
+plt.xlabel('Rezagos (Lags)')
+plt.ylabel('Autocorrelación')
+plt.grid(True, linestyle='--', alpha=0.5)
+
+# fac de los reiduos aal cuadrado
+plt.subplot(1, 2, 2)
+plot_acf(residuos_cuadrado, lags=40, zero=False, ax=plt.gca(), color='darkred')
+plt.title('FAC de los Residuos al Cuadrado ($e_t^2$)', fontsize=13, fontweight='bold')
+plt.xlabel('Rezagos (Lags)')
+plt.ylabel('Autocorrelación')
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.tight_layout()
+plt.show()
+# %% Prueba Ljung-Box
+
+ljung_box = acorr_ljungbox(
+    residuos,
+    lags=[6, 12, 18, 24],
+    return_df=True
+)
+
+print("Prueba Ljung-Box")
+print(ljung_box)
+
+if (ljung_box['lb_pvalue'] > 0.05).all():
+    print("No se rechaza H0; no hay autocorrelación en los residuos.")
+else:    
+    print("Se rechaza H0; hay autocorrelación en los residuos.")
+# H0: no hay autocorrelación en los residuos.
+# Si p-value > 0.05, no se rechaza H0.
+
+
+# %% Prueba ARCH de heterocedasticidad
+
+arch_test = het_arch(residuos, nlags=12)
+
+print("Prueba ARCH")
+print("LM statistic:", arch_test[0])
+print("LM p-value:", arch_test[1])
+
+# H0: no hay efectos ARCH.
+# Si p-value > 0.05, no se rechaza H0.
+
+
+# %% Prueba de normalidad Jarque-Bera
+
+jb_stat, jb_pvalue, asimetria, curtosis = jarque_bera(residuos)
+
+print("Prueba Jarque-Bera")
+print("Jarque-Bera statistic:", jb_stat)
+print("Jarque-Bera p-value:", jb_pvalue)
+
+if jb_pvalue > 0.05:
+    print("No se rechaza H0; los residuos siguen una distribución normal.")
+else:    
+    print("Se rechaza H0; los residuos no siguen una distribución normal.")
+# H0: los residuos siguen una distribución normal.
+# Si p-value > 0.05, no se rechaza H0.
+
+# %% Q-Q plot de los residuos
+plt.figure(figsize=(6, 6))
+stats.probplot(residuos, dist="norm", plot=plt)
+plt.title("Q-Q plot de los residuos")
+plt.grid(True)
+plt.show()
+
+# %% Gráfica de los Residuos a lo largo del tiempo
+
+# 1. Extraemos los residuos del modelo estimado
+residuos = resultados_212.resid
+
+plt.figure(figsize=(12, 5))
+
+# 2. Graficamos los residuos usando el índice de fechas de tu DataFrame
+plt.plot(df_hipotecas.index, residuos, color='darkwhite' if False else 'dimgray', linewidth=1, label='Residuos ($e_t$)')
+
+# 3. Añadimos una línea horizontal en cero como referencia obligatoria
+plt.axhline(0, color='red', linestyle='--', alpha=0.7, linewidth=1.5, label='Media Teórica = 0')
+
+# Configuración estética para el póster
+plt.title('Comportamiento de los Residuos del Modelo ARIMA(2,1,2) en el Tiempo', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)')
+plt.ylabel('Valor del Error')
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.legend(loc='upper left')
+
+plt.tight_layout()
+plt.show()
+
+#%% pronostico 
+df_hipotecas = df_hipotecas.asfreq(df_hipotecas.index.inferred_freq)
+
+# 2. Configurar y entrenar el modelo final directamente en NIVELES
+modelo_final = SARIMAX(
+    df_hipotecas['Tasa_hipotecaria'],
+    order=(2, 1, 2),
+    trend='c',
+    enforce_stationarity=False,
+    enforce_invertibility=False
+)
+resultado_final = modelo_final.fit(disp=False)
+
+# 3. Proyectar 10 periodos hacia el futuro con fechas correctas
+pasos_futuros = 10
+pronostico_objeto = resultado_final.get_forecast(steps=pasos_futuros)
+
+# 4. Extraer la media y los intervalos
+pronostico_nivel = pronostico_objeto.predicted_mean
+intervalos_nivel = pronostico_objeto.conf_int()
+
+# 5. Imprimir tabla de control en consola
+tabla_pronostico = pd.DataFrame({
+    "Pronóstico (%)": pronostico_nivel,
+    "Límite Inferior": intervalos_nivel.iloc[:, 0],
+    "Límite Superior": intervalos_nivel.iloc[:, 1]
+})
+print("\n--- TABLA DE PRONÓSTICOS GENERADA CON ÉXITO ---")
+print(tabla_pronostico.round(4))
+
