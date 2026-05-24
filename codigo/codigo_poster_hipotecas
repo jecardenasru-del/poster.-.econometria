@@ -23,10 +23,10 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 #%%  BASE DE DATOS 
 CARPETA_ACTUAL = Path('.').resolve()
 
-# 2. .parent sube un nivel (sale de 'codigo') y luego entra a 'bases_de_datos'
+# parent sube un nivel (sale de 'codigo') y luego entra a 'bases_de_datos'
 ruta_hipotecas = CARPETA_ACTUAL.parent / "bases_de_datos" / "Hipotecas_MORTGAGE30US.csv"
 
-# 3. Carga la base de datos
+#Carga la base de datos
 df_hipotecas = pd.read_csv(ruta_hipotecas, parse_dates=['observation_date'], index_col='observation_date')
 #%% mirar la base de datos
 # Renombro las columnas por que tiene un nombre muy feo y tedioso
@@ -44,8 +44,8 @@ plt.grid(True, linestyle='--')
 plt.show()
 
 # Nota : Se puede apreciar que no tiene ni media ni varianza constante, por lo que no es estacionaria.
-# Por ello voy a aplicar primer logarritmo y luego diferencia para intentar hacerla estacionaria :D 
-
+# Por ello voy a aplicar primer logarritmo y luego diferencia para intentar hacerla estacionaria :D
+#  
 #%% Grafico con la transformacion de logaritmo
 df_hipotecas['log_hipotecas'] = np.log(df_hipotecas['Tasa_hipotecaria'])
 # Se anade un columna de log de los datos en la base de datos
@@ -141,7 +141,7 @@ modelo_automatico = pm.auto_arima(df_hipotecas['Tasa_hipotecaria'],
                                   start_p=0, start_q=0, # Desde qué rezagos empezar a buscar
                                   max_p=5, max_q=5,     # Hasta qué rezago máximo probar
                                   d=1,                  # Ya comprobamos que necesita 1 diferencia
-                                  seasonal=False,       # No es un modelo estacional (SARIMA)
+                                  seasonal=False,       # No es un modelo estacional 
                                   trace=True,           # Clave: Muestra la "competencia" en la consola
                                   error_action='ignore',
                                   suppress_warnings=True,
@@ -274,15 +274,15 @@ plt.show()
 
 # %% Gráfica de los Residuos a lo largo del tiempo
 
-# 1. Extraemos los residuos del modelo estimado
+# errores del modelo
 residuos = resultados_212.resid
 
 plt.figure(figsize=(12, 5))
 
-# 2. Graficamos los residuos usando el índice de fechas de tu DataFrame
+# grafica de los residuos
 plt.plot(df_hipotecas.index, residuos, color='darkwhite' if False else 'dimgray', linewidth=1, label='Residuos ($e_t$)')
 
-# 3. Añadimos una línea horizontal en cero como referencia obligatoria
+# linea de referencia en cero
 plt.axhline(0, color='red', linestyle='--', alpha=0.7, linewidth=1.5, label='Media Teórica = 0')
 
 # Configuración estética para el póster
@@ -298,7 +298,7 @@ plt.show()
 #%% pronostico 
 df_hipotecas = df_hipotecas.asfreq(df_hipotecas.index.inferred_freq)
 
-# 2. Configurar y entrenar el modelo final directamente en NIVELES
+# configurar del pronostico
 modelo_final = SARIMAX(
     df_hipotecas['Tasa_hipotecaria'],
     order=(2, 1, 2),
@@ -308,15 +308,15 @@ modelo_final = SARIMAX(
 )
 resultado_final = modelo_final.fit(disp=False)
 
-# 3. Proyectar 10 periodos hacia el futuro con fechas correctas
+# pronosticar 10 periodos 
 pasos_futuros = 10
 pronostico_objeto = resultado_final.get_forecast(steps=pasos_futuros)
 
-# 4. Extraer la media y los intervalos
+# extraer la media y los intervalos
 pronostico_nivel = pronostico_objeto.predicted_mean
 intervalos_nivel = pronostico_objeto.conf_int()
 
-# 5. Imprimir tabla de control en consola
+# imprimir tabla 
 tabla_pronostico = pd.DataFrame({
     "Pronóstico (%)": pronostico_nivel,
     "Límite Inferior": intervalos_nivel.iloc[:, 0],
@@ -326,3 +326,4 @@ print("\n--- TABLA DE PRONÓSTICOS GENERADA CON ÉXITO ---")
 print(tabla_pronostico.round(4))
 
 
+# %%
