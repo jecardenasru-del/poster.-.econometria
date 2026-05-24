@@ -147,7 +147,7 @@ modelo_automatico = pm.auto_arima(df_hipotecas['Tasa_hipotecaria'],
                                   suppress_warnings=True,
                                   stepwise=True)        # Algoritmo eficiente de búsqueda
 
-print("\n--- RESUMEN DEL MODELO GANADOR ---")
+print("RESUMEN DEL MODELO GANADOR")
 print(modelo_automatico.summary())
 # SOy muy bueno le atine a la primera :D ARIMA(2,1,2) es el mejor modelo segun el criterio de AIC :D
 # traiganme ya el otro parcial :) y lo cinqueo jaja
@@ -168,7 +168,7 @@ modelo_automatico = pm.auto_arima(df_hipotecas['Tasa_hipotecaria'],
                                   suppress_warnings=True,
                                   stepwise=True)        
 
-print("\n--- RESUMEN DEL MODELO GANADOR (SEGÚN BIC) ---")
+print("RESUMEN DEL MODELO GANADOR (SEGÚN BIC)")
 print(modelo_automatico.summary())
 
 #%% test de raiz unitaria
