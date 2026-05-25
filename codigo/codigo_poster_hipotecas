@@ -1,17 +1,18 @@
-# BASE DE DATOS REFERENCIADA: 
-# Freddie Mac, Promedio de hipotecas a tipo fijo a 30 años en Estados Unidos [MORTGAGE30US],
-# recuperado de FRED, Banco de la Reserva Federal de St. Louis; https://fred.stlouisfed.org/series/MORTGAGE30US, 22 de mayo de 2026.
 
+#*-------------------------------------------------------------------------#
+#*--------- PARTE 0 :LIBRERIAS Y CARGAR LA BASE DE DATOS ------------------#
+#*-------------------------------------------------------------------------#
 #%% Librerias
-import numpy as np
-import pandas as pd
+import numpy as np  # type: ignore
+import pandas as pd # type: ignore
 from pathlib import Path
 import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import warnings
+from statsmodels.iolib.summary2 import summary_col
 import pmdarima as pm # para halar el mejor modelo de ARIMA
-from statsmodels.stats.diagnostic import acorr_ljungbox # para la prueba de autocorrelacion de los residuos
+from statsmodels.stats.diagnostic import acorr_ljungbox # type: ignore # para la prueba de autocorrelacion de los residuos
 warnings.filterwarnings('ignore')
 from statsmodels.tsa.stattools import adfuller # para el test de raiz unitaria
 from statsmodels.stats.diagnostic import het_arch
@@ -33,8 +34,10 @@ df_hipotecas = pd.read_csv(ruta_hipotecas, parse_dates=['observation_date'], ind
 df_hipotecas = df_hipotecas.rename(columns={'MORTGAGE30US': 'Tasa_hipotecaria'})
 print(df_hipotecas.info())
 print(df_hipotecas.describe())
-
-#%% Grafica de la serie de tiempo 
+#%% Grafica de la serie de tiempo
+#*------------------------------------------------------------------------#
+#*----------------------- PARTE 1 : IDENTIFICACION -----------------------#
+#*------------------------------------------------------------------------#
 plt.figure(figsize=(12, 6))
 plt.plot(df_hipotecas.index, df_hipotecas['Tasa_hipotecaria'], color='darkblue', linewidth=2)
 plt.title('Promedio de Tasa Hipotecaria Fija a 30 Años en EE.UU. (Niveles)', fontsize=14, fontweight='bold')
@@ -43,8 +46,8 @@ plt.ylabel('y_t (Porcentaje %)')
 plt.grid(True, linestyle='--')
 plt.show()
 
-# Nota : Se puede apreciar que no tiene ni media ni varianza constante, por lo que no es estacionaria.
-# Por ello voy a aplicar primer logarritmo y luego diferencia para intentar hacerla estacionaria :D
+# * Nota : Se puede apreciar que no tiene ni media ni varianza constante, por lo que no es estacionaria.
+# * Por ello voy a aplicar primer logarritmo y luego diferencia para intentar hacerla estacionaria :D
 #  
 #%% Grafico con la transformacion de logaritmo
 df_hipotecas['log_hipotecas'] = np.log(df_hipotecas['Tasa_hipotecaria'])
@@ -123,16 +126,6 @@ plt.show()
 # yo diria que puede ser un ARIMA(2,1,2) por parcimonia ya que tanto 
 # la parte autoregresiva como la de media movil parecieran que tiene solucion imaginaria 
 
-#%% ARIMA(2,1,2)
-modelo_arima_212 = ARIMA(df_hipotecas['Tasa_hipotecaria'], order=(2, 1, 2))
-resultados_212 = modelo_arima_212.fit()
-print(resultados_212.summary())
-
-#%% Predicciones con ARIMA(3,1,3)
-modelo_arima_313 = ARIMA(df_hipotecas['Tasa_hipotecaria'], order=(3, 1, 3))
-resultados_313 = modelo_arima_313.fit()
-print(resultados_313.summary())
-
 # %% Busuqueda automatica del mejor modelo ARIMA :D con el AIC
 print("Buscando el mejor modelo ARIMA segun el criterio de AIC...")
 
@@ -141,16 +134,16 @@ modelo_automatico = pm.auto_arima(df_hipotecas['Tasa_hipotecaria'],
                                   start_p=0, start_q=0, # Desde qué rezagos empezar a buscar
                                   max_p=5, max_q=5,     # Hasta qué rezago máximo probar
                                   d=1,                  # Ya comprobamos que necesita 1 diferencia
-                                  seasonal=False,       # No es un modelo estacional 
-                                  trace=True,           # Clave: Muestra la "competencia" en la consola
+                                  seasonal=False,        
+                                  trace=True,           # Clave: Muestra la "competencia" 
                                   error_action='ignore',
                                   suppress_warnings=True,
                                   stepwise=True)        # Algoritmo eficiente de búsqueda
 
 print("RESUMEN DEL MODELO GANADOR")
 print(modelo_automatico.summary())
-# SOy muy bueno le atine a la primera :D ARIMA(2,1,2) es el mejor modelo segun el criterio de AIC :D
-# traiganme ya el otro parcial :) y lo cinqueo jaja
+# SOy muy bueno le atine a la primera :D ARIMA(2,1,2) es el mejor modelo segun el AIC :D
+# traiganme ya el otro parcial ya :) y lo cinqueo jaja
 
 
 #%% Busuqueda automatica del mejor modelo ARIMA :D con el BIC
@@ -162,7 +155,7 @@ modelo_automatico = pm.auto_arima(df_hipotecas['Tasa_hipotecaria'],
                                   max_p=5, max_q=5,     
                                   d=1,                  
                                   seasonal=False,       
-                                  information_criterion='bic', # <-- CLAVE: Fuerza a elegir por BIC
+                                  information_criterion='bic', # bic en lugar de aic
                                   trace=True,           
                                   error_action='ignore',
                                   suppress_warnings=True,
@@ -170,7 +163,45 @@ modelo_automatico = pm.auto_arima(df_hipotecas['Tasa_hipotecaria'],
 
 print("RESUMEN DEL MODELO GANADOR (SEGÚN BIC)")
 print(modelo_automatico.summary())
+#*creo que a la profe no le gusta que se use el auto_arima por eso lo hago manualmente entre los que pensaba que podrian ser
 
+#*ya habia dichi=o que podia ser un ARIMA(2,1,2) porque la parte autoregresiva como la de media movil parecieran que tienen solucion imaginaria,
+#*pero por mayor parsimonia un ARIMA(2,1,2) era lo mejor
+
+#*por mayor parsimonia pudo ser un ARIMA(1,1,1)
+
+#*podria ser una opcion tambien un ARIMA(2,1,0) por que la parte autoregresiva pareciera que tiene solucion imaginaria 
+#%% comparacion manual entre los tres que pensaba 
+modelo_1 = ARIMA(df_hipotecas['Tasa_hipotecaria'], order=(2, 1, 2)).fit() 
+modelo_2 = ARIMA(df_hipotecas['Tasa_hipotecaria'], order=(2, 1, 0)).fit() 
+modelo_3 = ARIMA(df_hipotecas['Tasa_hipotecaria'], order=(1, 1, 1)).fit() 
+
+info_metrices = {
+    'AIC': lambda x: f"{x.aic:.1f}",
+    'BIC': lambda x: f"{x.bic:.1f}"
+}
+
+# Tu tabla comparativa corregida
+tabla_comparativa = summary_col(
+    results=[modelo_1, modelo_2, modelo_3],
+    model_names=['ARIMA(2,1,2)', 'ARIMA(2,1,0)', 'ARIMA(1,1,1)'],
+    stars=True,          # Agrega asteriscos de significancia (*, **, ***)
+    float_format='%0.3f', # Muestra 3 decimales para los coeficientes
+    info_dict=info_metrices # AIC y BIC
+)
+
+print(tabla_comparativa)
+#*-------------------------------------------------------------------------#
+#*------------------------ PARTE 2 : ESTIMACION ---------------------------#
+#*-------------------------------------------------------------------------#
+#%% ARIMA(2,1,2) por que era el mejor :D
+modelo_arima_212 = ARIMA(df_hipotecas['Tasa_hipotecaria'], order=(2, 1, 2))
+resultados_212 = modelo_arima_212.fit()
+print(resultados_212.summary())
+
+#*-------------------------------------------------------------------------#
+#*------------------- PARTE 3 : VALIDACION DE SUPUESTOS -------------------#
+#*-------------------------------------------------------------------------#
 #%% test de raiz unitaria
 # Aplicamos el test a la serie diferenciada (eliminando los valores nulos)
 serie_test = df_hipotecas['Dif_hipotecas'].dropna() 
@@ -295,7 +326,10 @@ plt.legend(loc='upper left')
 plt.tight_layout()
 plt.show()
 
-#%% pronostico 
+#*-------------------------------------------------------------------------#
+#*--------------------------- PARTE 4 : PRONOSTICO  -----------------------#
+#*-------------------------------------------------------------------------#
+#%% pronostico 10 pasos adelante
 df_hipotecas = df_hipotecas.asfreq(df_hipotecas.index.inferred_freq)
 
 # configurar del pronostico

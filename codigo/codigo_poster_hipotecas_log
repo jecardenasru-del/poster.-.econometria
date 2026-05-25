@@ -1,17 +1,18 @@
-# BASE DE DATOS REFERENCIADA: 
-# Freddie Mac, Promedio de hipotecas a tipo fijo a 30 años en Estados Unidos [MORTGAGE30US],
-# recuperado de FRED, Banco de la Reserva Federal de St. Louis; https://fred.stlouisfed.org/series/MORTGAGE30US, 22 de mayo de 2026.
 
+#*-------------------------------------------------------------------------#
+#*--------- PARTE 0 :LIBRERIAS Y CARGAR LA BASE DE DATOS ------------------#
+#*-------------------------------------------------------------------------#
 #%% Librerias
-import numpy as np
-import pandas as pd
+import numpy as np  # type: ignore
+import pandas as pd # type: ignore
 from pathlib import Path
 import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import warnings
+from statsmodels.iolib.summary2 import summary_col
 import pmdarima as pm # para halar el mejor modelo de ARIMA
-from statsmodels.stats.diagnostic import acorr_ljungbox # para la prueba de autocorrelacion de los residuos
+from statsmodels.stats.diagnostic import acorr_ljungbox # type: ignore # para la prueba de autocorrelacion de los residuos
 warnings.filterwarnings('ignore')
 from statsmodels.tsa.stattools import adfuller # para el test de raiz unitaria
 from statsmodels.stats.diagnostic import het_arch
@@ -34,6 +35,9 @@ df_hipotecas = df_hipotecas.rename(columns={'MORTGAGE30US': 'Tasa_hipotecaria'})
 print(df_hipotecas.info())
 print(df_hipotecas.describe())
 
+#*------------------------------------------------------------------------#
+#*----------------------- PARTE 1 : IDENTIFICACION -----------------------#
+#*------------------------------------------------------------------------#
 #%% Grafica de la serie de tiempo 
 plt.figure(figsize=(12, 6))
 plt.plot(df_hipotecas.index, df_hipotecas['Tasa_hipotecaria'], color='darkblue', linewidth=2)
@@ -131,23 +135,6 @@ plt.grid(True, linestyle='--', alpha=0.5)
 plt.tight_layout()
 plt.show()
 
-# podria ser un ARIMA(2,1,2) o un ARIMA(1,1,1) o un ARIMA(2,1,0)
-
-#%% ARIMA(1,1,1)
-modelo_arima_111 = ARIMA(df_hipotecas['log_hipotecas'], order=(1, 1, 1))
-resultados_111 = modelo_arima_111.fit()
-print(resultados_111.summary())
-
-#%% Predicciones con ARIMA(2,1,2)
-modelo_arima_212 = ARIMA(df_hipotecas['log_hipotecas'], order=(2, 1, 2))
-resultados_212 = modelo_arima_212.fit()
-print(resultados_212.summary())
-
-#%% Predicciones con ARIMA(2,1,0)
-modelo_arima_210 = ARIMA(df_hipotecas['log_hipotecas'], order=(2, 1, 0))
-resultados_210 = modelo_arima_210.fit()
-print(resultados_210.summary())
-
 # %% Busuqueda automatica del mejor modelo ARIMA :D con el AIC
 print("Buscando el mejor modelo ARIMA segun el criterio de AIC...")
 
@@ -183,9 +170,47 @@ modelo_automatico = pm.auto_arima(df_hipotecas['log_hipotecas'],
 
 print("RESUMEN DEL MODELO GANADOR (SEGÚN BIC)")
 print(modelo_automatico.summary())
+#*creo que a la profe no le gusta que se use el auto_arima por eso lo hago manualmente entre los que pensaba que podrian ser
 
-#por parcimoia me cadera con el arima (1,1,1)
+#*yo creo que podrian ser 
+#*ARIMA(1,1,1)
+#*ARIMA(2,1,0)
+#*ARIMA(2,1,2)
 
+#%% comparacion manual entre los tres que pensaba 
+modelo_1 = ARIMA(df_hipotecas['log_hipotecas'], order=(1, 1, 1)).fit() 
+modelo_2 = ARIMA(df_hipotecas['log_hipotecas'], order=(2, 1, 0)).fit() 
+modelo_3 = ARIMA(df_hipotecas['log_hipotecas'], order=(2, 1, 2)).fit() 
+
+info_metrices = {
+    'AIC': lambda x: f"{x.aic:.1f}",
+    'BIC': lambda x: f"{x.bic:.1f}"
+}
+
+# Tu tabla comparativa corregida
+tabla_comparativa = summary_col(
+    results=[modelo_1, modelo_2, modelo_3],
+    model_names=['ARIMA(1,1,1)', 'ARIMA(2,1,0)', 'ARIMA(2,1,2)'],
+    stars=True,          # Agrega asteriscos de significancia (*, **, ***)
+    float_format='%0.3f', # Muestra 3 decimales para los coeficientes
+    info_dict=info_metrices # AIC y BIC
+)
+
+print(tabla_comparativa)
+
+#* mejor modelo :D ARIMA(1,1,1) por que tiene BIC mas bajo y estoy premiendo parsimonia :D
+
+#*-------------------------------------------------------------------------#
+#*------------------------ PARTE 2 : ESTIMACION ---------------------------#
+#*-------------------------------------------------------------------------#
+#%% se escojeria por parsimonia un ARIMA(1,1,1)
+modelo_arima_111 = ARIMA(df_hipotecas['log_hipotecas'], order=(1, 1, 1))
+resultados_111 = modelo_arima_111.fit()
+print(resultados_111.summary())
+
+#*-------------------------------------------------------------------------#
+#*------------------- PARTE 3 : VALIDACION DE SUPUESTOS -------------------#
+#*-------------------------------------------------------------------------#
 #%% test de raiz unitaria
 # Aplicamos el test a la serie diferenciada (eliminando los valores nulos)
 serie_test = df_hipotecas['Dif_log_hipotecas'].dropna() 
@@ -301,7 +326,7 @@ plt.plot(df_hipotecas.index, residuos, color='darkwhite' if False else 'dimgray'
 plt.axhline(0, color='red', linestyle='--', alpha=0.7, linewidth=1.5, label='Media Teórica = 0')
 
 # Configuración estética para el póster
-plt.title('Comportamiento de los Residuos del Modelo ARIMA(2,1,2) en el Tiempo', fontsize=14, fontweight='bold')
+plt.title('Comportamiento de los Residuos del Modelo ARIMA(1,1,1) en el Tiempo', fontsize=14, fontweight='bold')
 plt.xlabel('Tiempo (Años)')
 plt.ylabel('Valor del Error')
 plt.grid(True, linestyle='--', alpha=0.5)
@@ -309,14 +334,16 @@ plt.legend(loc='upper left')
 
 plt.tight_layout()
 plt.show()
-
+#*-------------------------------------------------------------------------#
+#*--------------------------- PARTE 4 : PRONOSTICO  -----------------------#
+#*-------------------------------------------------------------------------#
 #%% pronostico 
 df_hipotecas = df_hipotecas.asfreq(df_hipotecas.index.inferred_freq)
 
 # configurar del pronostico
 modelo_final = SARIMAX(
     df_hipotecas['log_hipotecas'],
-    order=(2, 1, 2),
+    order=(1, 1, 1),
     trend='c',
     enforce_stationarity=False,
     enforce_invertibility=False
@@ -339,6 +366,3 @@ tabla_pronostico = pd.DataFrame({
 })
 print("\n--- TABLA DE PRONÓSTICOS GENERADA CON ÉXITO ---")
 print(tabla_pronostico.round(4))
-
-
-# %%
