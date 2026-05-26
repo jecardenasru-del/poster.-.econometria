@@ -1,8 +1,9 @@
 
+#%% Librerias
 #*-------------------------------------------------------------------------#
 #*--------- PARTE 0 :LIBRERIAS Y CARGAR LA BASE DE DATOS ------------------#
 #*-------------------------------------------------------------------------#
-#%% Librerias
+
 import numpy as np  # type: ignore
 import pandas as pd # type: ignore
 from pathlib import Path
@@ -61,7 +62,7 @@ plt.ylabel('log(y_t)')
 plt.grid(True, linestyle='--')
 plt.show()
 
-# %% Comparativa entre la serie original y la transformada en logaritmo
+#%% Comparativa entre la serie original y la transformada en logaritmo
 
 plt.figure(figsize=(12, 6))
 
@@ -135,7 +136,7 @@ plt.grid(True, linestyle='--', alpha=0.5)
 plt.tight_layout()
 plt.show()
 
-# %% Busuqueda automatica del mejor modelo ARIMA :D con el AIC
+#%% Busuqueda automatica del mejor modelo ARIMA :D con el AIC
 print("Buscando el mejor modelo ARIMA segun el criterio de AIC...")
 
 # Ejecutamos el auto_arima 
@@ -229,7 +230,7 @@ if resultado_adf[1] < 0.05:
 else:
     print("No se rechaza H0; la serie no es estacionaria.")
 
-# %% FAC de residuos y residuos al cuadrado
+#%% FAC de residuos y residuos al cuadrado
 # se sacan los residuos del modelo :D
 residuos = resultados_111.resid
 residuos_cuadrado = residuos ** 2
@@ -254,7 +255,7 @@ plt.ylabel('Autocorrelación')
 plt.grid(True, linestyle='--', alpha=0.5)
 plt.tight_layout()
 plt.show()
-# %% Prueba Ljung-Box
+#%% Prueba Ljung-Box
 
 ljung_box = acorr_ljungbox(
     residuos,
@@ -273,7 +274,7 @@ else:
 # Si p-value > 0.05, no se rechaza H0.
 
 
-# %% Prueba ARCH de heterocedasticidad
+#%% Prueba ARCH de heterocedasticidad
 
 arch_test = het_arch(residuos, nlags=12)
 
@@ -282,15 +283,15 @@ print("LM statistic:", arch_test[0])
 print("LM p-value:", arch_test[1])
 
 if arch_test[1] > 0.05:
-    print("No se rechaza H0; no hay efectos ARCH.")
+    print("No se rechaza H0; Los residuos tienen varianza constante")
 else:    
-    print("Se rechaza H0; hay efectos ARCH.")
+    print("Se rechaza H0; Los residuos no tienen varianza constante")
 
 # H0: no hay efectos ARCH.
 # Si p-value > 0.05, no se rechaza H0.
 
 
-# %% Prueba de normalidad Jarque-Bera
+#%% Prueba de normalidad Jarque-Bera
 
 jb_stat, jb_pvalue, asimetria, curtosis = jarque_bera(residuos)
 
@@ -305,14 +306,14 @@ else:
 # H0: los residuos siguen una distribución normal.
 # Si p-value > 0.05, no se rechaza H0.
 
-# %% Q-Q plot de los residuos
+#%% Q-Q plot de los residuos
 plt.figure(figsize=(6, 6))
 stats.probplot(residuos, dist="norm", plot=plt)
 plt.title("Q-Q plot de los residuos")
 plt.grid(True)
 plt.show()
 
-# %% Gráfica de los Residuos a lo largo del tiempo
+#%% Gráfica de los Residuos a lo largo del tiempo
 
 # errores del modelo
 residuos = resultados_111.resid
@@ -337,10 +338,13 @@ plt.show()
 #*-------------------------------------------------------------------------#
 #*--------------------------- PARTE 4 : PRONOSTICO  -----------------------#
 #*-------------------------------------------------------------------------#
-#%% pronostico 
+#%% pronostico
+serie_grafica = df_hipotecas['Tasa_hipotecaria'].copy()
+
+# configurar la frecuencia para el modelo
 df_hipotecas = df_hipotecas.asfreq(df_hipotecas.index.inferred_freq)
 
-# configurar del pronostico
+# configurar el modelo
 modelo_final = SARIMAX(
     df_hipotecas['log_hipotecas'],
     order=(1, 1, 1),
@@ -350,21 +354,56 @@ modelo_final = SARIMAX(
 )
 resultado_final = modelo_final.fit(disp=False)
 
-# pronosticar 10 periodos 
+# pronostico 10 pasoss adelante        
 pasos_futuros = 10
 pronostico_objeto = resultado_final.get_forecast(steps=pasos_futuros)
 
-# extraer la media y los intervalos
+# extraer la media y los intervalos (en escala logarítmica)
 pronostico_nivel = pronostico_objeto.predicted_mean
 intervalos_nivel = pronostico_objeto.conf_int()
 
-# imprimir tabla 
+# revertir el logaritmo para volver a la escala original
+pronostico_original = np.exp(pronostico_nivel)
+intervalos_original = np.exp(intervalos_nivel)
+
+# Imprimir tabla 
 tabla_pronostico = pd.DataFrame({
-    "Pronóstico (%)": pronostico_nivel,
-    "Límite Inferior": intervalos_nivel.iloc[:, 0],
-    "Límite Superior": intervalos_nivel.iloc[:, 1]
+    "Pronóstico (%)": pronostico_original,
+    "Límite Inferior": intervalos_original.iloc[:, 0],
+    "Límite Superior": intervalos_original.iloc[:, 1]
 })
 print("\n--- TABLA DE PRONOSTICOS ---")
 print(tabla_pronostico.round(4))
 
-# %%
+# %% Grafica del pronostico 
+
+plt.figure(figsize=(12, 6))
+
+# grafica con solo los ultimos 120 datos .
+historicos_zoom = serie_grafica.dropna().tail(120) #se borran los nas
+plt.plot(historicos_zoom.index, historicos_zoom, label="Datos históricos", color="darkblue", linewidth=2)
+
+# Graficar la media del pronóstico
+plt.plot(pronostico_original.index, pronostico_original, label="Pronóstico", color="orange", linewidth=2.5)
+
+# grafica IC
+plt.fill_between(
+    pronostico_original.index,
+    intervalos_original.iloc[:, 0], 
+    intervalos_original.iloc[:, 1], 
+    color="orange",
+    alpha=0.3,
+    label="Intervalo de confianza (95%)"
+)
+
+# titulos
+plt.title('Pronóstico de la Tasa Hipotecaria Fija a 30 Años en EE.UU.', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)')
+plt.ylabel('Tasa de Interés (%)')
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.legend(loc='upper left')
+
+plt.tight_layout()
+plt.show()
+
+#%%por ahora no se me ocurre nada mas que agregar entonces fin del codigo :D

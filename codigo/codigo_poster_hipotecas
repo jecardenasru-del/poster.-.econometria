@@ -1,8 +1,8 @@
 
+#%% Librerias
 #*-------------------------------------------------------------------------#
 #*--------- PARTE 0 :LIBRERIAS Y CARGAR LA BASE DE DATOS ------------------#
 #*-------------------------------------------------------------------------#
-#%% Librerias
 import numpy as np  # type: ignore
 import pandas as pd # type: ignore
 from pathlib import Path
@@ -273,9 +273,9 @@ print("LM statistic:", arch_test[0])
 print("LM p-value:", arch_test[1])
 
 if arch_test[1] > 0.05:
-    print("No se rechaza H0; no hay efectos ARCH.")
+    print("No se rechaza H0; Los residuos tienen varianza constante")
 else:    
-    print("Se rechaza H0; hay efectos ARCH.")
+    print("Se rechaza H0; Los residuos no tienen varianza constante")
 
 # H0: no hay efectos ARCH.
 # Si p-value > 0.05, no se rechaza H0.
@@ -329,35 +329,68 @@ plt.show()
 #*-------------------------------------------------------------------------#
 #*--------------------------- PARTE 4 : PRONOSTICO  -----------------------#
 #*-------------------------------------------------------------------------#
-#%% pronostico 10 pasos adelante
+#%% pronostico
+serie_grafica = df_hipotecas['Tasa_hipotecaria'].copy()
+
+# configurar la frecuencia para el modelo
 df_hipotecas = df_hipotecas.asfreq(df_hipotecas.index.inferred_freq)
 
-# configurar del pronostico
+# configurar el modelo
 modelo_final = SARIMAX(
     df_hipotecas['Tasa_hipotecaria'],
-    order=(2, 1, 2),
+    order=(1, 1, 1),
     trend='c',
     enforce_stationarity=False,
     enforce_invertibility=False
 )
 resultado_final = modelo_final.fit(disp=False)
 
-# pronosticar 10 periodos 
+# pronostico 10 pasoss adelante        
 pasos_futuros = 10
 pronostico_objeto = resultado_final.get_forecast(steps=pasos_futuros)
 
-# extraer la media y los intervalos
-pronostico_nivel = pronostico_objeto.predicted_mean
-intervalos_nivel = pronostico_objeto.conf_int()
+# extraer la media y los intervalos (en escala logarítmica)
+pronostico_original = pronostico_objeto.predicted_mean
+intervalos_original = pronostico_objeto.conf_int()
 
-# imprimir tabla 
+# Imprimir tabla 
 tabla_pronostico = pd.DataFrame({
-    "Pronóstico (%)": pronostico_nivel,
-    "Límite Inferior": intervalos_nivel.iloc[:, 0],
-    "Límite Superior": intervalos_nivel.iloc[:, 1]
+    "Pronóstico (%)": pronostico_original,
+    "Límite Inferior": intervalos_original.iloc[:, 0],
+    "Límite Superior": intervalos_original.iloc[:, 1]
 })
 print("\n--- TABLA DE PRONOSTICOS ---")
 print(tabla_pronostico.round(4))
 
+# %% Grafica del pronostico 
 
-# %%
+plt.figure(figsize=(12, 6))
+
+# grafica con solo los ultimos 120 datos .
+historicos_zoom = serie_grafica.dropna().tail(120) #se borran los nas
+plt.plot(historicos_zoom.index, historicos_zoom, label="Datos históricos", color="darkblue", linewidth=2)
+
+# Graficar la media del pronóstico
+plt.plot(pronostico_original.index, pronostico_original, label="Pronóstico", color="orange", linewidth=2.5)
+
+# grafica IC
+plt.fill_between(
+    pronostico_original.index,
+    intervalos_original.iloc[:, 0], 
+    intervalos_original.iloc[:, 1], 
+    color="orange",
+    alpha=0.3,
+    label="Intervalo de confianza (95%)"
+)
+
+# titulos
+plt.title('Pronóstico de la Tasa Hipotecaria Fija a 30 Años en EE.UU.', fontsize=14, fontweight='bold')
+plt.xlabel('Tiempo (Años)')
+plt.ylabel('Tasa de Interés (%)')
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.legend(loc='upper left')
+
+plt.tight_layout()
+plt.show()
+
+#%%por ahora no se me ocurre nada mas que agregar entonces fin del codigo :D
