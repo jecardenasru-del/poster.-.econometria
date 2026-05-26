@@ -338,7 +338,7 @@ df_hipotecas = df_hipotecas.asfreq(df_hipotecas.index.inferred_freq)
 # configurar el modelo
 modelo_final = SARIMAX(
     df_hipotecas['Tasa_hipotecaria'],
-    order=(1, 1, 1),
+    order=(2, 1, 2),
     trend='c',
     enforce_stationarity=False,
     enforce_invertibility=False
