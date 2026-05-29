@@ -56,7 +56,7 @@ else:
 #*------------------------------------------------------------------------#
 plt.figure(figsize=(12, 6))
 plt.plot(df_hipotecas.index, df_hipotecas['Tasa_hipotecaria'], color='darkblue', linewidth=2)
-plt.title('Promedio de Tasa Hipotecaria Fija a 30 Años en EE.UU.', fontsize=14, fontweight='bold')
+plt.title('Promedio de Tasa Hipotecaria Fija a 30 Años en EE.UU. (Niveles)', fontsize=14, fontweight='bold')
 plt.xlabel('Tiempo (Años)')
 plt.ylabel('y_t (Porcentaje %)')
 plt.grid(True, linestyle='--')
@@ -80,9 +80,9 @@ plt.show()
 plt.figure(figsize=(12, 6))
 
 # 1. Grafica serie original (Azul)
-plt.plot(df_hipotecas.index, df_hipotecas['Tasa_hipotecaria'], color='blue', linewidth=2, label='Tasa Original (%)')
+plt.plot(df_hipotecas.index, df_hipotecas['Tasa_hipotecaria'], color='darkblue', linewidth=2, label='Tasa Original (%)')
 plt.xlabel('Tiempo (Años)')  # Se define en el eje principal
-plt.ylabel('Tasa Original (%)', color='blue')
+plt.ylabel('Tasa Original (%)', color='darkblue')
 plt.grid(True, linestyle='--')
 
 # 2. Activar el segundo eje Y compartiendo el mismo eje X
@@ -136,6 +136,7 @@ plt.ylabel('Autocorrelación Parcial')
 plt.grid(True, linestyle='--', alpha=0.5)
 
 plt.tight_layout()
+
 plt.show()
 
 # yo diria que puede ser un ARIMA(2,1,2) por parcimonia ya que tanto 
@@ -243,17 +244,26 @@ else:
 
 # %% Prueba ARCH de heterocedasticidad
 
-arch_test = het_arch(residuos, nlags=12)
+lista_lags = [1, 2, 5]
 
-print("Prueba ARCH")
-print("LM statistic:", arch_test[0])
-print("LM p-value:", arch_test[1])
+for lags in lista_lags:
+    # Ejecutamos la prueba para el lag actual del ciclo
+    arch_test = het_arch(residuos, nlags=lags)
+    
+    lm_statistic = arch_test[0]
+    p_value = arch_test[1]
+    
+    print(f"\nResultados para nlags = {lags}:")
+    print(f"  LM statistic: {lm_statistic:.4f}")
+    print(f"  LM p-value:   {p_value:.4f}")
+    
+    # Evaluación de la hipótesis nula (H0)
+    if p_value > 0.05:
+        print("  -> No se rechaza H0: Los residuos tienen varianza constante.")
+    else:
+        print("  -> Se rechaza H0: Los residuos no tienen varianza constante (Hay efectos ARCH).")
 
-if arch_test[1] > 0.05:
-    print("No se rechaza H0; Los residuos tienen varianza constante")
-else:    
-    print("Se rechaza H0; Los residuos no tienen varianza constante")
-
+print("\n" + "="*38)
 # H0: no hay efectos ARCH.
 # Si p-value > 0.05, no se rechaza H0.
 
@@ -344,7 +354,7 @@ print(tabla_pronostico.round(4))
 plt.figure(figsize=(12, 6))
 
 # grafica con solo los ultimos 120 datos .
-historicos_zoom = serie_grafica.dropna().tail(120) #se borran los nas
+historicos_zoom = serie_grafica.dropna().tail(100) #se borran los nas
 plt.plot(historicos_zoom.index, historicos_zoom, label="Datos históricos", color="darkblue", linewidth=2)
 
 # Graficar la media del pronóstico
