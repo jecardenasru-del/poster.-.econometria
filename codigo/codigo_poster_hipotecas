@@ -317,12 +317,13 @@ plt.show()
 #*--------------------------- PARTE 4 : PRONOSTICO  -----------------------#
 #*-------------------------------------------------------------------------#
 #%% pronostico
+# 1. Copiar la serie para la gráfica
 serie_grafica = df_hipotecas['Tasa_hipotecaria'].copy()
 
-# configurar la frecuencia para el modelo
-df_hipotecas = df_hipotecas.asfreq(df_hipotecas.index.inferred_freq)
+# 2. Configurar la frecuencia semanal de los jueves CORRECTA y rellenar si faltan datos
+df_hipotecas = df_hipotecas.asfreq('W-THU').ffill()
 
-# configurar el modelo
+# 3. Configurar y ajustar el modelo SARIMAX
 modelo_final = SARIMAX(
     df_hipotecas['Tasa_hipotecaria'],
     order=(2, 1, 2),
@@ -332,15 +333,15 @@ modelo_final = SARIMAX(
 )
 resultado_final = modelo_final.fit(disp=False)
 
-# pronostico 10 pasoss adelante        
+# 4. Pronóstico 10 semanas adelante       
 pasos_futuros = 10
 pronostico_objeto = resultado_final.get_forecast(steps=pasos_futuros)
 
-# extraer la media y los intervalos (en escala logarítmica)
+# 5. Extraer la media y los intervalos de confianza
 pronostico_original = pronostico_objeto.predicted_mean
 intervalos_original = pronostico_objeto.conf_int()
 
-# Imprimir tabla 
+# 6. Crear e imprimir la tabla limpia
 tabla_pronostico = pd.DataFrame({
     "Pronóstico (%)": pronostico_original,
     "Límite Inferior": intervalos_original.iloc[:, 0],
@@ -348,13 +349,12 @@ tabla_pronostico = pd.DataFrame({
 })
 print("\n--- TABLA DE PRONOSTICOS ---")
 print(tabla_pronostico.round(4))
-
 # %% Grafica del pronostico 
 
 plt.figure(figsize=(12, 6))
 
 # grafica con solo los ultimos 120 datos .
-historicos_zoom = serie_grafica.dropna().tail(100) #se borran los nas
+historicos_zoom = serie_grafica.dropna().tail(300) #se borran los nas
 plt.plot(historicos_zoom.index, historicos_zoom, label="Datos históricos", color="darkblue", linewidth=2)
 
 # Graficar la media del pronóstico
